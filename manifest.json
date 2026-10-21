@@ -1,0 +1,42 @@
+{
+  "name": "Schichtplaner · Thüringen",
+  "short_name": "Schichtplaner",
+  "description": "3-Schicht-Kalender mit Urlaubsrechner und Feiertagen für alle Bundesländer. Offline nutzbar, kein Abo, keine Werbung.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "background_color": "#0f1117",
+  "theme_color": "#6366f1",
+  "orientation": "portrait-primary",
+  "lang": "de",
+  "dir": "ltr",
+  "id": "schichtplaner-thuringen-v1",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    { "src": "icon-48.png",  "sizes": "48x48",   "type": "image/png" },
+    { "src": "icon-72.png",  "sizes": "72x72",   "type": "image/png" },
+    { "src": "icon-96.png",  "sizes": "96x96",   "type": "image/png" },
+    { "src": "icon-144.png", "sizes": "144x144", "type": "image/png" },
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Kalender",
+      "short_name": "Kalender",
+      "description": "Schichtkalender öffnen",
+      "url": "./program-munca.html#calendar",
+      "icons": [{ "src": "icon-96.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Urlaub berechnen",
+      "short_name": "Urlaub",
+      "description": "Urlaubstage berechnen",
+      "url": "./program-munca.html#vacation",
+      "icons": [{ "src": "icon-96.png", "sizes": "96x96" }]
+    }
+  ],
+  "screenshots": [],
+  "prefer_related_applications": false
+}

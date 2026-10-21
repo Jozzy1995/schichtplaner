@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Program Ture · Schichtplaner</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f1117">
+<meta name="apple-mobile-web-app-capable" content="true">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Schichtplaner">
+<style>
+  :root {
+    --bg:#0f1117;--surface:#181c27;--surface2:#1f2435;--border:#2a2f42;
+    --text:#e8eaf0;--text-muted:#7a7f96;
+    --s1:#3b82f6;--s1-bg:#1e2a45;--s2:#10b981;--s2-bg:#122d25;
+    --s3:#f59e0b;--s3-bg:#2d2210;
+    --holiday:#e879a0;--holiday-bg:#2d1422;
+    --vacation:#a78bfa;--vacation-bg:#1e1535;
+    --today-ring:#6366f1;
+    --halfday:#f97316;--halfday-bg:#2d1a08;
+    color-scheme:dark; box-sizing:border-box;
+  }
+  @media(prefers-color-scheme:light){
+    :root:not([data-theme="dark"]){
+      --bg:#f0f2f8;--surface:#fff;--surface2:#e8eaf2;--border:#d0d4e8;
+      --text:#1a1d2e;--text-muted:#6b7090;
+      --s1-bg:#dbeafe;--s2-bg:#d1fae5;--s3-bg:#fef3c7;
+      --holiday-bg:#fce7f3;--vacation-bg:#ede9fe;
+      --halfday:#ea6f0a;--halfday-bg:#fff3e8;
+      color-scheme:light;
+    }
+  }
+  *,*::before,*::after{box-sizing:inherit;margin:0;padding:0;}
+  body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding-bottom:env(safe-area-inset-bottom,0px);}
+  .tabs{display:flex;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:20;}
+  .tab{flex:1;padding:12px 4px;text-align:center;font-size:11px;font-weight:600;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;user-select:none;}
+  .tab.active{color:var(--today-ring);border-bottom-color:var(--today-ring);}
+  .tab-icon{font-size:15px;display:block;margin-bottom:2px;}
+  .page{display:none;} .page.active{display:block;}
+  .cal-header{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 16px 10px;}
+  .cal-header-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+  h1{font-size:17px;font-weight:700;}
+  .shift-badge{font-size:12px;font-weight:600;padding:4px 10px;border-radius:20px;background:var(--surface2);display:flex;align-items:center;gap:6px;}
+  .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+  .nav{display:flex;gap:4px;align-items:center;}
+  .nav button{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:5px 10px;cursor:pointer;font-size:13px;font-weight:500;}
+  .nav button:hover{background:var(--border);}
+  .nav .month-label{font-size:14px;font-weight:600;min-width:130px;text-align:center;}
+  .nav .today-btn{background:var(--today-ring);border-color:var(--today-ring);color:#fff;margin-left:4px;}
+  .legend{display:flex;gap:8px;flex-wrap:wrap;padding:8px 16px;background:var(--surface);border-bottom:1px solid var(--border);font-size:11px;}
+  .legend-item{display:flex;align-items:center;gap:5px;color:var(--text-muted);}
+  .legend-dot{width:9px;height:9px;border-radius:3px;}
+  .section-title{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;padding:10px 16px 5px;max-width:520px;margin:0 auto;}
+  .week-strip{display:flex;gap:5px;padding:0 16px 12px;max-width:520px;margin:0 auto;overflow-x:auto;}
+  .week-day{flex:1;min-width:42px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:7px 3px;text-align:center;}
+  .week-day.today-strip{border-color:var(--today-ring);}
+  .week-day.holiday{border-color:var(--holiday);}
+  .week-day.vacation-day{border-color:var(--vacation);background:var(--vacation-bg);}
+  .week-day-name{font-size:9px;color:var(--text-muted);font-weight:600;text-transform:uppercase;margin-bottom:3px;}
+  .week-day-num{font-size:15px;font-weight:700;margin-bottom:3px;}
+  .week-day-shift{font-size:9px;font-weight:700;text-transform:uppercase;}
+  .week-day-hours{font-size:8px;color:var(--text-muted);margin-top:1px;}
+  .week-day.s1 .week-day-shift{color:var(--s1);}
+  .week-day.s2 .week-day-shift{color:var(--s2);}
+  .week-day.s3 .week-day-shift{color:var(--s3);}
+  .week-day.free .week-day-shift{color:var(--text-muted);}
+  .week-day.vacation-day .week-day-shift{color:var(--vacation);}
+  .week-day.halfday-strip{border-color:var(--halfday);background:var(--halfday-bg);}
+  .week-day.halfday-strip .week-day-shift{color:var(--halfday);}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 16px 12px;max-width:520px;margin:0 auto;}
+  .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px;text-align:center;}
+  .stat-val{font-size:20px;font-weight:800;line-height:1;margin-bottom:3px;}
+  .stat-label{font-size:10px;color:var(--text-muted);font-weight:500;}
+  .calendar-wrap{padding:0 16px 20px;max-width:520px;margin:0 auto;}
+  .weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:3px;}
+  .weekday{text-align:center;font-size:10px;font-weight:600;color:var(--text-muted);padding:3px 0;text-transform:uppercase;}
+  .days-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
+  .day{aspect-ratio:1;border-radius:9px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;border:1.5px solid transparent;position:relative;cursor:default;transition:transform .1s;}
+  .day:not(.empty):hover{transform:scale(1.04);}
+  .day.empty{background:transparent;}
+  .day-num{font-size:13px;font-weight:600;line-height:1;}
+  .day-tag{font-size:8px;font-weight:700;opacity:.9;text-transform:uppercase;}
+  .day.today{border-color:var(--today-ring)!important;box-shadow:0 0 0 2px rgba(99,102,241,.25);}
+  .day.s1{background:var(--s1-bg);color:var(--s1);}
+  .day.s2{background:var(--s2-bg);color:var(--s2);}
+  .day.s3{background:var(--s3-bg);color:var(--s3);}
+  .day.free{background:transparent;color:var(--text-muted);border-color:var(--border);}
+  .day.holiday{background:var(--holiday-bg)!important;color:var(--holiday)!important;border-color:var(--holiday)!important;}
+  .day.vacation{background:var(--vacation-bg)!important;color:var(--vacation)!important;border-color:var(--vacation)!important;}
+  .day.halfday{background:var(--halfday-bg)!important;color:var(--halfday)!important;border-color:var(--halfday)!important;}
+  .day.other-month{opacity:.28;}
+  .tooltip-text{display:none;position:absolute;bottom:110%;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:11px;white-space:nowrap;padding:4px 8px;border-radius:6px;z-index:100;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,.4);}
+  .day:hover .tooltip-text{display:block;}
+  .holiday-list{padding:0 16px 16px;max-width:520px;margin:0 auto;}
+  .holiday-item{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--border);margin-bottom:5px;font-size:12px;}
+  .hi-date{color:var(--holiday);font-weight:700;min-width:60px;}
+  .hi-name{flex:1;}
+  .hi-badge{font-size:10px;padding:2px 6px;border-radius:10px;background:var(--holiday-bg);color:var(--holiday);font-weight:600;}
+  /* VACATION */
+  .vac-page{padding:16px;max-width:520px;margin:0 auto;}
+  .vac-page h2{font-size:16px;font-weight:700;margin-bottom:4px;}
+  .vac-sub{font-size:12px;color:var(--text-muted);margin-bottom:20px;}
+  .vac-balance{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:20px;}
+  .vb-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px;text-align:center;}
+  .vb-val{font-size:24px;font-weight:800;margin-bottom:2px;}
+  .vb-label{font-size:10px;color:var(--text-muted);font-weight:500;}
+  .form-group{margin-bottom:16px;}
+  .form-label{font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;display:block;}
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  input[type="date"],input[type="number"]{width:100%;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;-webkit-appearance:none;appearance:none;}
+  input[type="date"]:focus,input[type="number"]:focus{outline:none;border-color:var(--vacation);}
+  .btn-calc{width:100%;padding:12px;background:var(--vacation);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-top:4px;}
+  .btn-calc:hover{opacity:.9;}
+  .calc-result{background:var(--vacation-bg);border:1.5px solid var(--vacation);border-radius:12px;padding:16px;margin-top:16px;display:none;}
+  .calc-result.show{display:block;}
+  .cr-main{font-size:28px;font-weight:800;color:var(--vacation);margin-bottom:8px;}
+  .cr-detail{font-size:12px;color:var(--text-muted);line-height:1.8;}
+  .cr-detail span{color:var(--text);font-weight:600;}
+  .cr-warning{font-size:12px;color:#f59e0b;margin-top:8px;padding:8px;background:rgba(245,158,11,.1);border-radius:6px;display:none;}
+  .cr-warning.show{display:block;}
+  .btn-add-vac{width:100%;padding:10px;background:transparent;color:var(--vacation);border:1.5px dashed var(--vacation);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;margin-top:8px;}
+  .btn-add-vac:hover{background:var(--vacation-bg);}
+  .vac-list{margin-top:20px;}
+  .vac-item{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;}
+  .vac-item-info{flex:1;}
+  .vac-item-dates{font-size:13px;font-weight:600;color:var(--vacation);}
+  .vac-item-days{font-size:11px;color:var(--text-muted);margin-top:1px;}
+  .vac-item-del{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:16px;padding:4px;}
+  .vac-item-del:hover{color:var(--holiday);}
+  .empty-vac{text-align:center;padding:30px 16px;color:var(--text-muted);font-size:13px;}
+  /* SETTINGS */
+  .settings-page{padding:16px;max-width:520px;margin:0 auto;}
+  .settings-page h2{font-size:16px;font-weight:700;margin-bottom:4px;}
+  .settings-sub{font-size:12px;color:var(--text-muted);margin-bottom:20px;}
+  .settings-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px;}
+  .settings-card h3{font-size:13px;font-weight:700;margin-bottom:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;}
+  .shift-selector{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;}
+  .shift-btn{padding:12px 6px;border-radius:10px;border:2px solid var(--border);background:var(--surface2);color:var(--text-muted);font-size:13px;font-weight:700;cursor:pointer;text-align:center;transition:all .15s;}
+  .shift-btn.active-s1{border-color:var(--s1);background:var(--s1-bg);color:var(--s1);}
+  .shift-btn.active-s2{border-color:var(--s2);background:var(--s2-bg);color:var(--s2);}
+  .shift-btn.active-s3{border-color:var(--s3);background:var(--s3-bg);color:var(--s3);}
+  .shift-btn-hours{font-size:10px;font-weight:400;margin-top:3px;opacity:.8;}
+  .settings-info{font-size:12px;color:var(--text-muted);line-height:1.6;background:var(--surface2);border-radius:8px;padding:10px 12px;margin-top:8px;}
+  .btn-save{width:100%;padding:13px;background:var(--today-ring);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-top:4px;}
+  .btn-save:hover{opacity:.9;}
+  .save-confirm{display:none;text-align:center;color:var(--s2);font-size:13px;font-weight:600;margin-top:10px;padding:8px;background:var(--s2-bg);border-radius:8px;}
+  .save-confirm.show{display:block;}
+  select{width:100%;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;margin-top:6px;}
+  select:focus{outline:none;border-color:var(--today-ring);}
+  /* LANG TOGGLE */
+  .lang-toggle{display:flex;gap:6px;margin-top:8px;}
+  .lang-btn{flex:1;padding:9px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text-muted);font-size:13px;font-weight:600;cursor:pointer;text-align:center;}
+  .lang-btn.active{border-color:var(--today-ring);background:rgba(99,102,241,.15);color:var(--today-ring);}
+  /* HALF-DAY SETTINGS */
+  .halfday-list{display:flex;flex-direction:column;gap:6px;margin-bottom:10px;}
+  .halfday-item{display:flex;align-items:center;gap:10px;background:var(--halfday-bg);border:1px solid var(--halfday);border-radius:8px;padding:8px 12px;}
+  .halfday-item-date{flex:1;font-size:14px;font-weight:700;color:var(--halfday);}
+  .halfday-item-del{background:none;border:none;color:var(--halfday);cursor:pointer;font-size:16px;padding:2px 6px;opacity:.7;}
+  .halfday-item-del:hover{opacity:1;}
+  .halfday-add-row{display:flex;gap:8px;margin-top:4px;}
+  .halfday-add-row input{flex:1;background:var(--surface);border:1px solid var(--halfday);color:var(--text);border-radius:8px;padding:9px 12px;font-size:14px;}
+  .halfday-add-row input:focus{outline:none;border-color:var(--halfday);}
+  .halfday-add-btn{padding:9px 14px;background:var(--halfday);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;}
+  .halfday-add-btn:hover{opacity:.9;}
+</style>
+</head>
+<body>
+
+<div class="tabs">
+  <div class="tab active" onclick="showTab('calendar')"><span class="tab-icon">📅</span><span data-t="tab_cal">Calendar</span></div>
+  <div class="tab" onclick="showTab('vacation')"><span class="tab-icon">🏖️</span><span data-t="tab_vac">Concediu</span></div>
+  <div class="tab" onclick="showTab('settings')"><span class="tab-icon">⚙️</span><span data-t="tab_set">Setări</span></div>
+</div>
+
+<!-- CALENDAR -->
+<div id="page-calendar" class="page active">
+  <div class="cal-header">
+    <div class="cal-header-top">
+      <h1>⏰ <span data-t="app_title">Program Ture</span></h1>
+      <div class="shift-badge" id="currentShiftBadge"></div>
+    </div>
+    <div class="nav">
+      <button onclick="changeMonth(-1)">‹</button>
+      <span class="month-label" id="monthLabel"></span>
+      <button onclick="changeMonth(1)">›</button>
+      <button class="today-btn" onclick="goToday()" data-t="today_btn">Azi</button>
+    </div>
+  </div>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--s1)"></div>S1 · 06–14</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--s2)"></div>S2 · 14–22</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--s3)"></div>S3 · 22–06</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--text-muted)"></div>Weekend</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--holiday)"></div>Feiertag</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--vacation)"></div><span data-t="vacation_lbl">Concediu</span></div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--halfday)"></div><span data-t="halfday_lbl">Zi ½</span></div>
+  </div>
+  <div class="section-title" data-t="this_week">Săptămâna curentă</div>
+  <div class="week-strip" id="weekStrip"></div>
+  <div class="section-title" id="statsTitle"></div>
+  <div class="stats" id="stats"></div>
+  <div class="section-title" data-t="cal_lbl">Calendar</div>
+  <div class="calendar-wrap">
+    <div class="weekdays" id="weekdayRow"></div>
+    <div class="days-grid" id="daysGrid"></div>
+  </div>
+  <div class="section-title" id="holidayTitle"></div>
+  <div class="holiday-list" id="holidayList"></div>
+</div>
+
+<!-- VACATION -->
+<div id="page-vacation" class="page">
+  <div class="vac-page">
+    <h2>🏖️ <span data-t="vac_title">Planificator concediu</span></h2>
+    <p class="vac-sub" data-t="vac_sub">Calculează automat — fără weekenduri, fără Feiertage.</p>
+    <div class="vac-balance">
+      <div class="vb-card"><div class="vb-val" style="color:var(--s2)" id="balTotal">30</div><div class="vb-label" data-t="bal_total">Total/an</div></div>
+      <div class="vb-card"><div class="vb-val" style="color:var(--vacation)" id="balUsed">0</div><div class="vb-label" data-t="bal_used">Folosite</div></div>
+      <div class="vb-card"><div class="vb-val" style="color:var(--s1)" id="balLeft">30</div><div class="vb-label" data-t="bal_left">Rămase</div></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label" data-t="days_per_year">Zile de concediu pe an</label>
+      <input type="number" id="totalDays" value="30" min="1" max="60" oninput="updateBalance()">
+    </div>
+    <div class="form-group">
+      <label class="form-label" data-t="vac_period">Perioada de concediu</label>
+      <div class="form-row">
+        <div><label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;" data-t="from_lbl">De la</label><input type="date" id="vacStart"></div>
+        <div><label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;" data-t="to_lbl">Până la</label><input type="date" id="vacEnd"></div>
+      </div>
+    </div>
+    <button class="btn-calc" onclick="calcVacation()" data-t="calc_btn">Calculează zilele de concediu</button>
+    <div class="calc-result" id="calcResult">
+      <div class="cr-main" id="crMain"></div>
+      <div class="cr-detail" id="crDetail"></div>
+      <div class="cr-warning" id="crWarning"></div>
+      <button class="btn-add-vac" onclick="addVacation()" data-t="add_vac_btn">+ Adaugă în calendar</button>
+    </div>
+    <div class="vac-list" id="vacList"></div>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div id="page-settings" class="page">
+  <div class="settings-page">
+    <h2>⚙️ <span data-t="set_title">Setări</span></h2>
+    <p class="settings-sub" data-t="set_sub">Configurează tura ta — fiecare persoană poate seta propria tură.</p>
+
+    <div class="settings-card">
+      <h3 data-t="set_shift_title">Tura mea în săptămâna curentă</h3>
+      <div class="shift-selector">
+        <div class="shift-btn" id="btn-s1" onclick="selectShift('S1')">S1<div class="shift-btn-hours">06:00–14:00</div></div>
+        <div class="shift-btn" id="btn-s2" onclick="selectShift('S2')">S2<div class="shift-btn-hours">14:00–22:00</div></div>
+        <div class="shift-btn" id="btn-s3" onclick="selectShift('S3')">S3<div class="shift-btn-hours">22:00–06:00</div></div>
+      </div>
+      <div class="settings-info" data-t="set_shift_info">📅 Selectează tura pe care ești <strong>săptămâna aceasta</strong>.</div>
+    </div>
+
+    <div class="settings-card">
+      <h3 data-t="set_ref_title">Ziua de referință</h3>
+      <label style="font-size:12px;color:var(--text-muted);" data-t="set_ref_label">Care este lunea săptămânii tale curente?</label>
+      <input type="date" id="refDate" style="margin-top:8px;">
+    </div>
+
+    <div class="settings-card">
+      <h3 data-t="set_region_title">Bundesland / Zona</h3>
+      <label style="font-size:12px;color:var(--text-muted);" data-t="set_region_label">Selectează zona pentru sărbători corecte:</label>
+      <select id="regionSelect" style="margin-top:8px;"></select>
+      <div class="settings-info" style="margin-top:8px;" id="regionInfo"></div>
+    </div>
+
+    <div class="settings-card">
+      <h3 data-t="set_halfday_title">Zile cu jumătate de zi liberă</h3>
+      <div class="settings-info" style="margin-bottom:12px;" data-t="set_halfday_info">Aceste zile sunt plătite doar 4h. Contează 0.5 zile de concediu.</div>
+      <div class="halfday-list" id="halfdayList"></div>
+      <div class="halfday-add-row">
+        <input type="text" id="halfdayInput" maxlength="5" data-t-placeholder="halfday_placeholder" placeholder="MM-ZZ (ex: 12-24)">
+        <button class="halfday-add-btn" onclick="addHalfDay()" data-t="halfday_add_btn">+ Adaugă dată</button>
+      </div>
+    </div>
+
+    <div class="settings-card">
+      <h3 data-t="set_lang_title">Limbă / Sprache</h3>
+      <div class="lang-toggle">
+        <div class="lang-btn" id="lang-ro" onclick="setLang('ro')">🇷🇴 Română</div>
+        <div class="lang-btn" id="lang-de" onclick="setLang('de')">🇩🇪 Deutsch</div>
+      </div>
+    </div>
+
+    <button class="btn-save" onclick="saveSettings()" data-t="save_btn">💾 Salvează setările</button>
+    <div class="save-confirm" id="saveConfirm" data-t="save_ok">✅ Setările au fost salvate!</div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// TRANSLATIONS
+// ═══════════════════════════════════════════════════════════════
+const T = {
+  ro: {
+    tab_cal:'Calendar', tab_vac:'Concediu', tab_set:'Setări',
+    app_title:'Program Ture', today_btn:'Azi',
+    this_week:'Săptămâna curentă', cal_lbl:'Calendar',
+    vacation_lbl:'Concediu',
+    halfday_lbl:'Zi ½',
+    set_halfday_title:'Zile cu jumătate de zi liberă',
+    set_halfday_info:'Aceste zile sunt plătite doar 4h. Contează 0.5 zile de concediu.',
+    halfday_add_btn:'+ Adaugă dată',
+    halfday_placeholder:'MM-ZZ (ex: 12-24)',
+    vac_title:'Planificator concediu',
+    vac_sub:'Calculează automat — fără weekenduri, fără Feiertage.',
+    bal_total:'Total/an', bal_used:'Folosite', bal_left:'Rămase',
+    days_per_year:'Zile de concediu pe an',
+    vac_period:'Perioada de concediu',
+    from_lbl:'De la', to_lbl:'Până la',
+    calc_btn:'Calculează zilele de concediu',
+    add_vac_btn:'+ Adaugă în calendar',
+    set_title:'Setări',
+    set_sub:'Configurează tura ta — fiecare persoană poate seta propria tură.',
+    set_shift_title:'Tura mea în săptămâna curentă',
+    set_shift_info:'📅 Selectează tura pe care ești <strong>săptămâna aceasta</strong>. Aplicația calculează automat ciclul 3→2→1.',
+    set_ref_title:'Ziua de referință',
+    set_ref_label:'Care este lunea săptămânii tale curente?',
+    set_region_title:'Bundesland / Zona',
+    set_region_label:'Selectează zona pentru sărbători corecte:',
+    set_lang_title:'Limbă / Sprache',
+    save_btn:'💾 Salvează setările',
+    save_ok:'✅ Setările au fost salvate! Calendarul s-a actualizat.',
+    feiertage_in:'Feiertage în',
+    stats_lbl_s1:'S1 zile', stats_lbl_s2:'S2 zile', stats_lbl_s3:'S3 zile',
+    stats_lbl_work:'Zile lucrate', stats_lbl_hours:'Ore totale', stats_lbl_hol:'Feiertage',
+    free:'Liber', weekend:'Weekend', vacation_day:'Concediu',
+    nationwide:'Bundesweit',
+    cr_days:'zile de concediu',
+    cr_period:'Perioada:', cr_cal:'Zile calendaristice:', cr_we:'Weekenduri (excluse):',
+    cr_hol:'Feiertage (excluse):', cr_needed:'Zile concediu necesare:',
+    cr_warn_a:'Ai doar', cr_warn_b:'zile rămase, dar ai nevoie de', cr_warn_c:'Depășești cu', cr_warn_d:'zile!',
+    vac_added:'Concediul a fost adăugat! ✈️',
+    vac_overlap:'Există deja o perioadă care se suprapune!',
+    vac_del_confirm:'Ștergi această perioadă?',
+    vac_empty:'Nicio perioadă adăugată încă.',
+    vac_planned:'Concedii planificate',
+    vac_consumed:'zile de concediu consumate',
+    err_dates:'Alege data de început și de sfârșit!',
+    err_order:'Data de sfârșit trebuie să fie după data de început!',
+    DAYS:['Lu','Ma','Mi','Jo','Vi','Sâ','Du'],
+    MONTHS:['Ianuarie','Februarie','Martie','Aprilie','Mai','Iunie','Iulie','August','Septembrie','Octombrie','Noiembrie','Decembrie'],
+  },
+  de: {
+    tab_cal:'Kalender', tab_vac:'Urlaub', tab_set:'Einstellungen',
+    app_title:'Schichtplaner', today_btn:'Heute',
+    this_week:'Diese Woche', cal_lbl:'Kalender',
+    vacation_lbl:'Urlaub',
+    halfday_lbl:'½ Tag',
+    set_halfday_title:'Halbe Tage (Betriebsruhe 4h)',
+    set_halfday_info:'Diese Tage werden nur 4h bezahlt. Gelten als 0,5 Urlaubstage.',
+    halfday_add_btn:'+ Datum hinzufügen',
+    halfday_placeholder:'MM-TT (z.B. 12-24)',
+    vac_title:'Urlaubsplaner',
+    vac_sub:'Automatische Berechnung — ohne Wochenenden und Feiertage.',
+    bal_total:'Gesamt/Jahr', bal_used:'Verbraucht', bal_left:'Verbleibend',
+    days_per_year:'Urlaubstage pro Jahr',
+    vac_period:'Urlaubszeitraum',
+    from_lbl:'Von', to_lbl:'Bis',
+    calc_btn:'Urlaubstage berechnen',
+    add_vac_btn:'+ Zum Kalender hinzufügen',
+    set_title:'Einstellungen',
+    set_sub:'Konfiguriere deine Schicht — jede Person kann ihre eigene Schicht einstellen.',
+    set_shift_title:'Meine Schicht diese Woche',
+    set_shift_info:'📅 Wähle deine Schicht <strong>diese Woche</strong>. Die App berechnet den 3→2→1-Zyklus automatisch.',
+    set_ref_title:'Referenztag',
+    set_ref_label:'Welcher Montag ist der Beginn deiner aktuellen Woche?',
+    set_region_title:'Bundesland / Region',
+    set_region_label:'Bundesland für korrekte Feiertage auswählen:',
+    set_lang_title:'Sprache / Limbă',
+    save_btn:'💾 Einstellungen speichern',
+    save_ok:'✅ Einstellungen gespeichert! Kalender aktualisiert.',
+    feiertage_in:'Feiertage im',
+    stats_lbl_s1:'S1 Tage', stats_lbl_s2:'S2 Tage', stats_lbl_s3:'S3 Tage',
+    stats_lbl_work:'Arbeitstage', stats_lbl_hours:'Stunden gesamt', stats_lbl_hol:'Feiertage',
+    free:'Frei', weekend:'Wochenende', vacation_day:'Urlaub',
+    nationwide:'Bundesweit',
+    cr_days:'Urlaubstage',
+    cr_period:'Zeitraum:', cr_cal:'Kalendertage:', cr_we:'Wochenenden (abgezogen):',
+    cr_hol:'Feiertage (abgezogen):', cr_needed:'Benötigte Urlaubstage:',
+    cr_warn_a:'Du hast nur noch', cr_warn_b:'Tage übrig, brauchst aber', cr_warn_c:'Überschreitung um', cr_warn_d:'Tage!',
+    vac_added:'Urlaub wurde hinzugefügt! ✈️',
+    vac_overlap:'Es gibt bereits einen überlappenden Zeitraum!',
+    vac_del_confirm:'Diesen Zeitraum löschen?',
+    vac_empty:'Noch kein Urlaub geplant.',
+    vac_planned:'Geplante Urlaube',
+    vac_consumed:'Urlaubstage verbraucht',
+    err_dates:'Bitte Start- und Enddatum auswählen!',
+    err_order:'Das Enddatum muss nach dem Startdatum liegen!',
+    DAYS:['Mo','Di','Mi','Do','Fr','Sa','So'],
+    MONTHS:['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'],
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// BUNDESLÄNDER + FEIERTAGE
+// ═══════════════════════════════════════════════════════════════
+// Keys match what buildHolidays uses
+const REGIONS = [
+  { id:'TH', name:'Thüringen',                  extra:['fronleichnam','weltkindertag','reformationstag'] },
+  { id:'BB', name:'Brandenburg',                 extra:['reformationstag'] },
+  { id:'BE', name:'Berlin',                      extra:[] },
+  { id:'BW', name:'Baden-Württemberg',           extra:['heilige_drei_koenige','fronleichnam','allerheiligen','fronleichnam'] },
+  { id:'BY', name:'Bayern',                      extra:['heilige_drei_koenige','fronleichnam','mariahimmelfahrt','allerheiligen','heiligabend'] },
+  { id:'HB', name:'Bremen',                      extra:['reformationstag'] },
+  { id:'HE', name:'Hessen',                      extra:['fronleichnam'] },
+  { id:'HH', name:'Hamburg',                     extra:['reformationstag'] },
+  { id:'MV', name:'Mecklenburg-Vorpommern',      extra:['reformationstag'] },
+  { id:'NI', name:'Niedersachsen',               extra:['reformationstag'] },
+  { id:'NW', name:'Nordrhein-Westfalen',         extra:['fronleichnam','allerheiligen'] },
+  { id:'RP', name:'Rheinland-Pfalz',             extra:['fronleichnam','allerheiligen','mariahimmelfahrt'] },
+  { id:'SH', name:'Schleswig-Holstein',          extra:['reformationstag'] },
+  { id:'SL', name:'Saarland',                    extra:['fronleichnam','mariahimmelfahrt','allerheiligen'] },
+  { id:'SN', name:'Sachsen',                     extra:['reformationstag','busstag'] },
+  { id:'ST', name:'Sachsen-Anhalt',              extra:['heilige_drei_koenige','reformationstag'] },
+];
+
+// ═══════════════════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════════════════
+let cfg = { currentShift:'S3', refMonday:'2026-10-19', region:'TH', lang:'ro', halfDays:['12-24','12-31'] };
+try { const s=localStorage.getItem('shiftConfig'); if(s) cfg={...cfg,...JSON.parse(s)}; } catch(e){}
+// ensure halfDays is always an array
+if(!Array.isArray(cfg.halfDays)) cfg.halfDays=['12-24','12-31'];
+
+function isHalfDay(d){
+  const mm=String(d.getMonth()+1).padStart(2,'0');
+  const dd=String(d.getDate()).padStart(2,'0');
+  return !isHoliday(d) && d.getDay()!==0 && d.getDay()!==6 && cfg.halfDays.includes(`${mm}-${dd}`);
+}
+
+function t(key){ return (T[cfg.lang]||T.ro)[key]||key; }
+
+function applyTranslations() {
+  document.querySelectorAll('[data-t]').forEach(el=>{
+    const key=el.getAttribute('data-t');
+    const val=t(key);
+    if(el.tagName==='INPUT') el.placeholder=val;
+    else el.innerHTML=val;
+  });
+  document.querySelectorAll('[data-t-placeholder]').forEach(el=>{
+    el.placeholder=t(el.getAttribute('data-t-placeholder'));
+  });
+  // weekday row
+  const wr=document.getElementById('weekdayRow');
+  if(wr) wr.innerHTML=t('DAYS').map(d=>`<div class="weekday">${d}</div>`).join('');
+  // lang buttons
+  document.getElementById('lang-ro').classList.toggle('active', cfg.lang==='ro');
+  document.getElementById('lang-de').classList.toggle('active', cfg.lang==='de');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// HOLIDAYS
+// ═══════════════════════════════════════════════════════════════
+const holidayCache={};
+function getEaster(y){
+  const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,
+        f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),
+        h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,
+        l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),
+        mo=Math.floor((h+l-7*m+114)/31),day=((h+l-7*m+114)%31)+1;
+  return new Date(y,mo-1,day);
+}
+// Buß- und Bettag: Wednesday before the Sunday before Nov 23
+function getBusstag(y){
+  const nov23=new Date(y,10,23);
+  const dow=nov23.getDay();
+  const daysBefore=dow===0?4:dow+4;
+  return new Date(y,10,23-daysBefore);
+}
+
+function buildHolidays(y, regionId){
+  const R=REGIONS.find(r=>r.id===regionId)||REGIONS[0];
+  const H={},add=(d,n,scope)=>{H[dk(d)]={name:n,scope};};
+  const D=(mo,da)=>new Date(y,mo-1,da);
+  const off=(b,n)=>{const r=new Date(b);r.setDate(r.getDate()+n);return r;};
+  const E=getEaster(y);
+  const ex=R.extra;
+  // Bundesweit
+  add(D(1,1),'Neujahrstag','de');
+  if(ex.includes('heilige_drei_koenige')) add(D(1,6),'Heilige Drei Könige',R.id);
+  add(off(E,-2),'Karfreitag','de');
+  add(E,'Ostersonntag','de');
+  add(off(E,1),'Ostermontag','de');
+  add(D(5,1),'Tag der Arbeit','de');
+  add(off(E,39),'Christi Himmelfahrt','de');
+  add(off(E,49),'Pfingstsonntag','de');
+  add(off(E,50),'Pfingstmontag','de');
+  if(ex.includes('fronleichnam')) add(off(E,60),'Fronleichnam',R.id);
+  if(ex.includes('mariahimmelfahrt')) add(D(8,15),'Mariä Himmelfahrt',R.id);
+  if(regionId==='TH') add(D(9,20),'Weltkindertag','TH');
+  add(D(10,3),'Tag der Deutschen Einheit','de');
+  if(ex.includes('reformationstag')) add(D(10,31),'Reformationstag',R.id);
+  if(ex.includes('allerheiligen')) add(D(11,1),'Allerheiligen',R.id);
+  if(ex.includes('busstag')) add(getBusstag(y),'Buß- und Bettag',R.id);
+  if(ex.includes('heiligabend')) add(D(12,24),'Heiligabend',R.id);
+  add(D(12,25),'1. Weihnachtstag','de');
+  add(D(12,26),'2. Weihnachtstag','de');
+  return H;
+}
+function getHY(y){
+  const key=y+'_'+cfg.region;
+  return holidayCache[key]||(holidayCache[key]=buildHolidays(y,cfg.region));
+}
+function dk(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+function getHoliday(d){return getHY(d.getFullYear())[dk(d)]||null;}
+function isHoliday(d){return !!getHoliday(d);}
+
+// ═══════════════════════════════════════════════════════════════
+// VACATIONS
+// ═══════════════════════════════════════════════════════════════
+let vacations=[];
+try{vacations=JSON.parse(localStorage.getItem('vacations')||'[]');}catch(e){}
+function saveVacations(){try{localStorage.setItem('vacations',JSON.stringify(vacations));}catch(e){}}
+function isVacationDay(d){const k=dk(d);return vacations.some(v=>k>=v.start&&k<=v.end);}
+
+// ═══════════════════════════════════════════════════════════════
+// SHIFT LOGIC
+// ═══════════════════════════════════════════════════════════════
+const today=new Date();today.setHours(0,0,0,0);
+let viewYear=today.getFullYear(),viewMonth=today.getMonth();
+const CYCLE=['S3','S2','S1'];
+const SHIFTS={
+  S1:{label:'S1',hours:'06:00–14:00',color:'var(--s1)'},
+  S2:{label:'S2',hours:'14:00–22:00',color:'var(--s2)'},
+  S3:{label:'S3',hours:'22:00–06:00',color:'var(--s3)'},
+};
+function getMondayOfWeek(d){const r=new Date(d);r.setHours(0,0,0,0);const dow=r.getDay();r.setDate(r.getDate()+(dow===0?-6:1-dow));return r;}
+function getRefMonday(){return new Date(cfg.refMonday+'T00:00:00');}
+function getShift(d){
+  const r=new Date(d);r.setHours(0,0,0,0);
+  if(r.getDay()===0||r.getDay()===6) return 'FREE';
+  const mon=getMondayOfWeek(r),ref=getRefMonday();
+  const shiftIdx=CYCLE.indexOf(cfg.currentShift);
+  const w=Math.round((mon-ref)/(7*864e5));
+  return CYCLE[((shiftIdx-w)%3+3)%3];
+}
+function shiftClass(s){return {S1:'s1',S2:'s2',S3:'s3'}[s]||'free';}
+
+// ═══════════════════════════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════════════════════════
+function showTab(tab){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('page-'+tab).classList.add('active');
+  const idx={calendar:0,vacation:1,settings:2}[tab];
+  document.querySelectorAll('.tab')[idx].classList.add('active');
+  if(tab==='vacation') renderVacList();
+  if(tab==='settings') initSettingsUI();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SETTINGS UI
+// ═══════════════════════════════════════════════════════════════
+let pendingShift=cfg.currentShift;
+function initSettingsUI(){
+  pendingShift=cfg.currentShift;
+  updateShiftButtons();
+  document.getElementById('refDate').value=dk(getMondayOfWeek(today));
+  document.getElementById('saveConfirm').classList.remove('show');
+  // populate region select
+  const sel=document.getElementById('regionSelect');
+  sel.innerHTML=REGIONS.map(r=>`<option value="${r.id}"${r.id===cfg.region?' selected':''}>${r.id} – ${r.name}</option>`).join('');
+  updateRegionInfo();
+  sel.onchange=()=>updateRegionInfo();
+  renderHalfdayList();
+}
+function updateRegionInfo(){
+  const id=document.getElementById('regionSelect').value;
+  const R=REGIONS.find(r=>r.id===id)||REGIONS[0];
+  const ex=R.extra.length;
+  document.getElementById('regionInfo').innerHTML=
+    `📍 <strong>${R.name}</strong> — ${ex} ${cfg.lang==='de'?'regionale Feiertage':'sărbători regionale'}`;
+}
+function updateShiftButtons(){
+  ['S1','S2','S3'].forEach(s=>{
+    const btn=document.getElementById('btn-'+s.toLowerCase());
+    btn.className='shift-btn'+(pendingShift===s?` active-${s.toLowerCase()}`:'');
+  });
+}
+function selectShift(s){pendingShift=s;updateShiftButtons();}
+function renderHalfdayList(){
+  const list=document.getElementById('halfdayList');
+  if(!list)return;
+  if(!cfg.halfDays.length){list.innerHTML='<div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">—</div>';return;}
+  list.innerHTML=cfg.halfDays.sort().map((d,i)=>`<div class="halfday-item">
+    <span class="halfday-item-date">½ · ${d.replace('-','.')}</span>
+    <button class="halfday-item-del" onclick="removeHalfDay(${i})">✕</button>
+  </div>`).join('');
+}
+function addHalfDay(){
+  const inp=document.getElementById('halfdayInput');
+  const val=(inp.value||'').trim();
+  if(!/^\d{2}-\d{2}$/.test(val)){inp.focus();return;}
+  const [mm,dd]=val.split('-').map(Number);
+  if(mm<1||mm>12||dd<1||dd>31){inp.focus();return;}
+  if(!cfg.halfDays.includes(val)) cfg.halfDays.push(val);
+  inp.value='';
+  renderHalfdayList();
+}
+function removeHalfDay(i){
+  cfg.halfDays.splice(i,1);
+  renderHalfdayList();
+}
+
+function setLang(lang){
+  cfg.lang=lang;
+  document.getElementById('lang-ro').classList.toggle('active',lang==='ro');
+  document.getElementById('lang-de').classList.toggle('active',lang==='de');
+  applyTranslations();
+  renderAll();
+}
+function saveSettings(){
+  cfg.currentShift=pendingShift;
+  cfg.refMonday=document.getElementById('refDate').value||dk(getMondayOfWeek(today));
+  cfg.region=document.getElementById('regionSelect').value;
+  // halfDays already updated live via addHalfDay/removeHalfDay
+  // clear holiday cache for fresh recalc
+  Object.keys(holidayCache).forEach(k=>delete holidayCache[k]);
+  try{localStorage.setItem('shiftConfig',JSON.stringify(cfg));}catch(e){}
+  document.getElementById('saveConfirm').classList.add('show');
+  setTimeout(()=>document.getElementById('saveConfirm').classList.remove('show'),3000);
+  applyTranslations();
+  renderAll();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════════════════
+function renderAll(){renderBadge();renderWeekStrip();renderStats();renderCalendar();renderHolidayList();}
+
+function renderBadge(){
+  const s=getShift(today),h=getHoliday(today),b=document.getElementById('currentShiftBadge');
+  if(h) b.innerHTML=`<span class="dot" style="background:var(--holiday)"></span><span style="color:var(--holiday)">${h.name}</span>`;
+  else if(s==='FREE') b.innerHTML=`<span class="dot" style="background:var(--text-muted)"></span><span style="color:var(--text-muted)">${t('weekend')}</span>`;
+  else{const sh=SHIFTS[s];b.innerHTML=`<span class="dot" style="background:${sh.color}"></span><span style="color:${sh.color}">${sh.label} · ${sh.hours}</span>`;}
+}
+
+function renderWeekStrip(){
+  const mon=getMondayOfWeek(today),el=document.getElementById('weekStrip');
+  el.innerHTML='';
+  const DAYS=t('DAYS');
+  for(let i=0;i<7;i++){
+    const d=new Date(mon);d.setDate(d.getDate()+i);
+    const s=getShift(d),cls=shiftClass(s),h=getHoliday(d),vac=isVacationDay(d),hd=isHalfDay(d);
+    const isT=d.getTime()===today.getTime();
+    const lbl=vac?t('vacation_day'):hd?'½':s==='FREE'?(h?'🎉':t('free')):s;
+    const hrs=(!vac&&!hd&&s!=='FREE'&&!h)?SHIFTS[s].hours:(h?h.name.substring(0,10):'')+(hd?'4h':'');
+    el.innerHTML+=`<div class="week-day ${cls}${isT?' today-strip':''}${h?' holiday':''}${vac?' vacation-day':''}${hd?' halfday-strip':''}">
+      <div class="week-day-name">${DAYS[i]}</div>
+      <div class="week-day-num">${d.getDate()}</div>
+      <div class="week-day-shift">${lbl}</div>
+      ${hrs?`<div class="week-day-hours">${hrs}</div>`:''}
+    </div>`;
+  }
+}
+
+function renderStats(){
+  const dim=new Date(viewYear,viewMonth+1,0).getDate();
+  let s1=0,s2=0,s3=0,hol=0;
+  for(let d=1;d<=dim;d++){
+    const dt=new Date(viewYear,viewMonth,d);
+    if(isVacationDay(dt)||isHoliday(dt)){if(isHoliday(dt))hol++;continue;}
+    const s=getShift(dt);
+    if(s==='S1')s1++;else if(s==='S2')s2++;else if(s==='S3')s3++;
+  }
+  const MONTHS=t('MONTHS');
+  document.getElementById('statsTitle').textContent=`${MONTHS[viewMonth]} ${viewYear}`;
+  document.getElementById('stats').innerHTML=`
+    <div class="stat-card"><div class="stat-val" style="color:var(--s1)">${s1}</div><div class="stat-label">${t('stats_lbl_s1')}</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:var(--s2)">${s2}</div><div class="stat-label">${t('stats_lbl_s2')}</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:var(--s3)">${s3}</div><div class="stat-label">${t('stats_lbl_s3')}</div></div>
+    <div class="stat-card"><div class="stat-val">${s1+s2+s3}</div><div class="stat-label">${t('stats_lbl_work')}</div></div>
+    <div class="stat-card"><div class="stat-val">${(s1+s2+s3)*8}h</div><div class="stat-label">${t('stats_lbl_hours')}</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:var(--holiday)">${hol}</div><div class="stat-label">${t('stats_lbl_hol')}</div></div>`;
+}
+
+function renderCalendar(){
+  const MONTHS=t('MONTHS');
+  document.getElementById('monthLabel').textContent=`${MONTHS[viewMonth]} ${viewYear}`;
+  const grid=document.getElementById('daysGrid');grid.innerHTML='';
+  const firstDay=new Date(viewYear,viewMonth,1);
+  let sd=firstDay.getDay();sd=sd===0?6:sd-1;
+  const dim=new Date(viewYear,viewMonth+1,0).getDate();
+  const prev=new Date(viewYear,viewMonth,0).getDate();
+  const rDay=(date,other)=>{
+    const h=getHoliday(date),vac=isVacationDay(date),hd=isHalfDay(date),s=getShift(date);
+    let cls=vac?'vacation':(hd?'halfday':(h?'holiday':shiftClass(s)));
+    const isT=date.getTime()===today.getTime();
+    const tag=vac?'✈':(hd?'½':(h?'🎉':(s!=='FREE'?s:'')));
+    const tip=h?`<div class="tooltip-text">${h.name}</div>`:(vac?`<div class="tooltip-text">${t('vacation_day')}</div>`:hd?`<div class="tooltip-text">½ ${t('halfday_lbl')} · 4h</div>`:'');
+    return `<div class="day ${cls}${isT?' today':''}${other?' other-month':''}">
+      ${tip}<div class="day-num">${date.getDate()}</div>${tag?`<div class="day-tag">${tag}</div>`:''}
+    </div>`;
+  };
+  for(let i=sd-1;i>=0;i--) grid.innerHTML+=rDay(new Date(viewYear,viewMonth-1,prev-i),true);
+  for(let d=1;d<=dim;d++) grid.innerHTML+=rDay(new Date(viewYear,viewMonth,d),false);
+  const rem=(7-((sd+dim)%7))%7;
+  for(let d=1;d<=rem;d++) grid.innerHTML+=rDay(new Date(viewYear,viewMonth+1,d),true);
+}
+
+function renderHolidayList(){
+  const hy=getHY(viewYear);
+  const pre=`${viewYear}-${String(viewMonth+1).padStart(2,'0')}-`;
+  const items=Object.entries(hy).filter(([k])=>k.startsWith(pre)).sort(([a],[b])=>a.localeCompare(b));
+  const MONTHS=t('MONTHS');
+  document.getElementById('holidayTitle').textContent=items.length?`${t('feiertage_in')} ${MONTHS[viewMonth]}`:'';
+  const list=document.getElementById('holidayList');
+  const DAYS=t('DAYS');
+  if(!items.length){list.innerHTML='';return;}
+  const R=REGIONS.find(r=>r.id===cfg.region)||REGIONS[0];
+  list.innerHTML=items.map(([key,{name,scope}])=>{
+    const day=key.split('-')[2];
+    const dt=new Date(viewYear,viewMonth,parseInt(day));
+    const dow=DAYS[(dt.getDay()+6)%7];
+    const badge=scope==='de'?t('nationwide'):R.name;
+    return `<div class="holiday-item">
+      <span class="hi-date">${dow} ${day}.${String(viewMonth+1).padStart(2,'0')}</span>
+      <span class="hi-name">${name}</span>
+      <span class="hi-badge">${badge}</span>
+    </div>`;
+  }).join('');
+}
+
+function changeMonth(dir){
+  viewMonth+=dir;
+  if(viewMonth>11){viewMonth=0;viewYear++;}
+  if(viewMonth<0){viewMonth=11;viewYear--;}
+  renderCalendar();renderStats();renderHolidayList();
+}
+function goToday(){viewYear=today.getFullYear();viewMonth=today.getMonth();renderCalendar();renderStats();renderHolidayList();}
+
+// ═══════════════════════════════════════════════════════════════
+// VACATION CALCULATOR
+// ═══════════════════════════════════════════════════════════════
+let pendingVac=null;
+function calcVacation(){
+  const s=document.getElementById('vacStart').value,e=document.getElementById('vacEnd').value;
+  if(!s||!e){alert(t('err_dates'));return;}
+  const start=new Date(s),end=new Date(e);
+  if(end<start){alert(t('err_order'));return;}
+  let work=0,weekend=0,hol=0,hdCount=0,total=0;
+  const cur=new Date(start);
+  while(cur<=end){
+    total++;const dow=cur.getDay();
+    if(dow===0||dow===6)weekend++;
+    else if(isHoliday(cur))hol++;
+    else if(isHalfDay(cur)){hdCount++;work+=0.5;}
+    else work++;
+    cur.setDate(cur.getDate()+1);
+  }
+  const used=calcUsedDays();
+  const totalD=parseInt(document.getElementById('totalDays').value)||30;
+  const left=totalD-used;
+  const workDisplay=Number.isInteger(work)?work:work.toFixed(1);
+  document.getElementById('crMain').textContent=`${workDisplay} ${t('cr_days')}`;
+  const hdLine=hdCount?`<br>½ ${t('halfday_lbl')} (0.5 ${t('cr_days')} each): <span style="color:var(--halfday)">${hdCount}×</span>`:'';
+  document.getElementById('crDetail').innerHTML=`
+    ${t('cr_period')} <span>${fmtDate(start)} – ${fmtDate(end)}</span><br>
+    ${t('cr_cal')} <span>${total}</span><br>
+    ${t('cr_we')} <span>${weekend}</span><br>
+    ${t('cr_hol')} <span>${hol}</span>${hdLine}<br>
+    ${t('cr_needed')} <span style="color:var(--vacation)">${workDisplay}</span>`;
+  const warn=document.getElementById('crWarning');
+  if(work>left){warn.textContent=`⚠️ ${t('cr_warn_a')} ${left} ${t('cr_warn_b')} ${work}. ${t('cr_warn_c')} ${work-left} ${t('cr_warn_d')}`;warn.classList.add('show');}
+  else warn.classList.remove('show');
+  document.getElementById('calcResult').classList.add('show');
+  pendingVac={start:dk(start),end:dk(end),days:work,daysDisplay:workDisplay};
+}
+function addVacation(){
+  if(!pendingVac)return;
+  if(vacations.some(v=>pendingVac.start<=v.end&&pendingVac.end>=v.start)){alert(t('vac_overlap'));return;}
+  vacations.push({...pendingVac});saveVacations();pendingVac=null;
+  document.getElementById('calcResult').classList.remove('show');
+  document.getElementById('vacStart').value='';document.getElementById('vacEnd').value='';
+  updateBalance();renderVacList();renderCalendar();renderStats();renderWeekStrip();
+  alert(t('vac_added'));
+}
+function deleteVacation(i){
+  if(!confirm(t('vac_del_confirm')))return;
+  vacations.splice(i,1);saveVacations();updateBalance();renderVacList();renderCalendar();renderStats();renderWeekStrip();
+}
+function calcUsedDays(){
+  return vacations.reduce((sum,v)=>{
+    let cnt=0,c=new Date(v.start),e=new Date(v.end);
+    while(c<=e){
+      const dw=c.getDay();
+      if(dw!==0&&dw!==6&&!isHoliday(c)){
+        cnt+=isHalfDay(c)?0.5:1;
+      }
+      c.setDate(c.getDate()+1);
+    }
+    return sum+cnt;
+  },0);
+}
+function fmtDays(n){return Number.isInteger(n)?n:n.toFixed(1);}
+function updateBalance(){
+  const total=parseInt(document.getElementById('totalDays').value)||30;
+  const used=calcUsedDays();
+  const left=total-used;
+  document.getElementById('balTotal').textContent=total;
+  document.getElementById('balUsed').textContent=fmtDays(used);
+  document.getElementById('balLeft').textContent=fmtDays(Math.max(0,left));
+  document.getElementById('balLeft').style.color=left<5?'var(--holiday)':'var(--s1)';
+}
+function renderVacList(){
+  const el=document.getElementById('vacList');
+  if(!vacations.length){el.innerHTML=`<div class="empty-vac">${t('vac_empty')}</div>`;return;}
+  el.innerHTML=`<div class="section-title" style="padding:0 0 8px 0;">${t('vac_planned')}</div>`+
+    vacations.map((v,i)=>`<div class="vac-item">
+      <div style="font-size:24px">✈️</div>
+      <div class="vac-item-info">
+        <div class="vac-item-dates">${fmtDate(new Date(v.start))} – ${fmtDate(new Date(v.end))}</div>
+        <div class="vac-item-days">${v.daysDisplay||fmtDays(v.days)} ${t('vac_consumed')}</div>
+      </div>
+      <button class="vac-item-del" onclick="deleteVacation(${i})">✕</button>
+    </div>`).join('');
+}
+function fmtDate(d){return `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}`;}
+
+// ── SERVICE WORKER ─────────────────────────────────────────────
+if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{});}
+
+// ── INIT ───────────────────────────────────────────────────────
+applyTranslations();
+renderAll();
+updateBalance();
+</script>
+</body>
+</html>
