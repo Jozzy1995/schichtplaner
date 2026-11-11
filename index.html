@@ -266,6 +266,14 @@
     </div>
 
     <div class="settings-card">
+      <h3 data-t="set_s3start_title">Startul schimbului de noapte (S3)</h3>
+      <div class="lang-toggle" style="margin-top:8px;">
+        <div class="lang-btn" id="s3start-mon" onclick="setS3Start('false')" data-t="set_s3start_mon">Luni seara</div>
+        <div class="lang-btn" id="s3start-sun" onclick="setS3Start('true')" data-t="set_s3start_sun">Duminică seara</div>
+      </div>
+    </div>
+
+    <div class="settings-card">
       <h3 data-t="set_ref_title">Ziua de referință</h3>
       <label style="font-size:12px;color:var(--text-muted);" data-t="set_ref_label">Care este lunea săptămânii tale curente?</label>
       <input type="date" id="refDate" style="margin-top:8px;">
@@ -331,6 +339,9 @@ const T = {
     set_cycle_title:'Direcția ciclului',
     set_cycle_bwd:'3→2→1 (Noapte→Seară→Zi)',
     set_cycle_fwd:'1→2→3 (Zi→Seară→Noapte)',
+    set_s3start_title:'Startul schimbului de noapte (S3)',
+    set_s3start_mon:'Luni seara (Lu–Vi)',
+    set_s3start_sun:'Duminică seara (Du–Jo)',
     set_ref_title:'Ziua de referință',
     set_ref_label:'Care este lunea săptămânii tale curente?',
     set_region_title:'Bundesland / Zona',
@@ -383,6 +394,9 @@ const T = {
     set_cycle_title:'Zyklusrichtung',
     set_cycle_bwd:'3→2→1 (Nacht→Spät→Früh)',
     set_cycle_fwd:'1→2→3 (Früh→Spät→Nacht)',
+    set_s3start_title:'Start der Nachtschicht (S3)',
+    set_s3start_mon:'Montag Abend (Mo–Fr)',
+    set_s3start_sun:'Sonntag Abend (So–Do)',
     set_ref_title:'Referenztag',
     set_ref_label:'Welcher Montag ist der Beginn deiner aktuellen Woche?',
     set_region_title:'Bundesland / Region',
@@ -438,7 +452,7 @@ const REGIONS = [
 // ═══════════════════════════════════════════════════════════════
 // CONFIG
 // ═══════════════════════════════════════════════════════════════
-let cfg = { currentShift:'S3', refMonday:'2026-10-19', region:'TH', lang:'ro', halfDays:['12-24','12-31'], cycleDir:'bwd' };
+let cfg = { currentShift:'S3', refMonday:'2026-10-19', region:'TH', lang:'ro', halfDays:['12-24','12-31'], cycleDir:'bwd', s3StartSun:'false' };
 try { const s=localStorage.getItem('shiftConfig'); if(s) cfg={...cfg,...JSON.parse(s)}; } catch(e){}
 // ensure halfDays is always an array
 if(!Array.isArray(cfg.halfDays)) cfg.halfDays=['12-24','12-31'];
@@ -549,14 +563,29 @@ function getMondayOfWeek(d){const r=new Date(d);r.setHours(0,0,0,0);const dow=r.
 function getRefMonday(){return new Date(cfg.refMonday+'T00:00:00');}
 function getShift(d){
   const r=new Date(d);r.setHours(0,0,0,0);
-  if(r.getDay()===0||r.getDay()===6) return 'FREE';
+  const dow=r.getDay(); // 0=Sun,1=Mon,...,6=Sat
+  // Saturday always free
+  if(dow===6) return 'FREE';
+  // Sunday: free unless s3StartSun and this week's shift is S3
+  if(dow===0){
+    if(cfg.s3StartSun!=='true') return 'FREE';
+    // Check what shift the NEXT week (Mon) would be
+    const nextMon=new Date(r);nextMon.setDate(r.getDate()+1);
+    const mon=getMondayOfWeek(nextMon),ref=getRefMonday();
+    const shiftIdx=CYCLE.indexOf(cfg.currentShift);
+    const w=Math.round((mon-ref)/(7*864e5));
+    const dir=(cfg.cycleDir==='fwd')?-1:1;
+    const s=CYCLE[((shiftIdx+dir*w)%3+3)%3];
+    return s==='S3'?'S3':'FREE';
+  }
+  // Friday: free if s3StartSun and this week is S3 (S3 ends Thu night)
   const mon=getMondayOfWeek(r),ref=getRefMonday();
   const shiftIdx=CYCLE.indexOf(cfg.currentShift);
   const w=Math.round((mon-ref)/(7*864e5));
-  // bwd: S3→S2→S1→S3→... means index goes +1 each week in CYCLE=['S3','S2','S1']
-  // fwd: S1→S2→S3→S1→... means index goes -1 each week in CYCLE
   const dir=(cfg.cycleDir==='fwd')?-1:1;
-  return CYCLE[((shiftIdx+dir*w)%3+3)%3];
+  const s=CYCLE[((shiftIdx+dir*w)%3+3)%3];
+  if(dow===5 && cfg.s3StartSun==='true' && s==='S3') return 'FREE';
+  return s;
 }
 function shiftClass(s){return {S1:'s1',S2:'s2',S3:'s3'}[s]||'free';}
 
@@ -583,6 +612,9 @@ function initSettingsUI(){
   // cycle direction buttons
   document.getElementById('cycle-bwd').classList.toggle('active',(cfg.cycleDir||'bwd')==='bwd');
   document.getElementById('cycle-fwd').classList.toggle('active',(cfg.cycleDir||'bwd')==='fwd');
+  // s3 start day buttons
+  document.getElementById('s3start-mon').classList.toggle('active',(cfg.s3StartSun||'false')==='false');
+  document.getElementById('s3start-sun').classList.toggle('active',(cfg.s3StartSun||'false')==='true');
   document.getElementById('refDate').value=dk(getMondayOfWeek(today));
   document.getElementById('saveConfirm').classList.remove('show');
   // populate region select
@@ -610,6 +642,12 @@ function setCycleDir(dir){
   cfg.cycleDir=dir;
   document.getElementById('cycle-bwd').classList.toggle('active',dir==='bwd');
   document.getElementById('cycle-fwd').classList.toggle('active',dir==='fwd');
+  renderAll();
+}
+function setS3Start(val){
+  cfg.s3StartSun=val;
+  document.getElementById('s3start-mon').classList.toggle('active',val==='false');
+  document.getElementById('s3start-sun').classList.toggle('active',val==='true');
   renderAll();
 }
 function renderHalfdayList(){
